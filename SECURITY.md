@@ -1,29 +1,17 @@
-# Security Policy
+# Security
 
-This firmware controls a **physical motor** in an intimate-use device. Security
-and safety issues can have real-world physical consequences. Please report them
-privately.
+**This is an open starter / developer project — a reference you build on, not a
+finished product.** It is provided **as-is, with no security guarantees**. If you
+build, deploy, or ship anything based on it, **you are responsible for its
+security**: review the code, secure your own keys and deployments, and make it
+safe for your users and hardware.
 
-## Reporting a vulnerability
+That said, we appreciate a heads-up. If you spot a security problem:
 
-**Do not open a public issue for security or safety vulnerabilities.**
+- Please **don't** open a public issue for it.
+- Use the repository's **Security → Report a vulnerability** tab (private
+  advisory), or contact the maintainers via the umbrella project
+  `amok-products/strong-vibes`.
 
-Report privately via one of:
-- GitHub's private vulnerability reporting ("Report a vulnerability" under the
-  repository's **Security** tab), or
-- email **security@europemagicwand.com**
-
-Please include: affected version/commit, hardware revision if known, a
-description, and reproduction steps. We aim to acknowledge within 5 business
-days.
-
-## Scope
-
-In scope: motor-drive safety (unexpected/unbounded actuation), BLE handling
-(unauthenticated control, spoofing, malformed-packet handling), OTA/update
-integrity, and secret handling.
-
-## Disclosure
-
-We follow coordinated disclosure. Please give us reasonable time to ship a fix
-before any public write-up.
+We'll look into it and fix what we reasonably can — but please don't expect a
+formal SLA. This is a community project.

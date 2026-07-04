@@ -19,7 +19,7 @@ jobs:
         run: |
           set +e
           # Canonical location of the Strong Vibes Protocol spec in the umbrella repo.
-          URL="https://raw.githubusercontent.com/amok-products/strong-vibes/main/spec/strong-vibes-protocol.md"
+          URL="https://raw.githubusercontent.com/amok-products/strong-vibes/main/protocol/strong-vibes-protocol.md"
           HTTP=$(curl -sL -o canonical.md -w "%{http_code}" "$URL")
           echo "http=$HTTP" >> "$GITHUB_OUTPUT"
           if [ "$HTTP" != "200" ]; then

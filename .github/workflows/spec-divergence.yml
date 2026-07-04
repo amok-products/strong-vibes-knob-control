@@ -1,0 +1,43 @@
+name: spec-divergence
+
+on:
+  push:
+    paths: [ "skills/vibe-protocol.md", ".github/workflows/spec-divergence.yml" ]
+  pull_request:
+    paths: [ "skills/vibe-protocol.md", ".github/workflows/spec-divergence.yml" ]
+  workflow_dispatch:
+
+jobs:
+  check-spec-mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out this repo
+        uses: actions/checkout@v4
+
+      - name: Fetch canonical spec from umbrella (soft-skip if unreachable)
+        id: fetch
+        run: |
+          set +e
+          # Canonical location of the Strong Vibes Protocol spec in the umbrella repo.
+          URL="https://raw.githubusercontent.com/amok-products/strong-vibes/main/spec/strong-vibes-protocol.md"
+          HTTP=$(curl -sL -o canonical.md -w "%{http_code}" "$URL")
+          echo "http=$HTTP" >> "$GITHUB_OUTPUT"
+          if [ "$HTTP" != "200" ]; then
+            echo "::notice::Canonical spec not reachable (HTTP $HTTP) at $URL — umbrella repo not public yet. Skipping divergence check."
+            exit 0
+          fi
+
+      - name: Compare mirror against canonical (strip mirror banner)
+        if: steps.fetch.outputs.http == '200'
+        run: |
+          # Drop the leading HTML mirror-banner comment from our copy before comparing bodies.
+          awk 'f{print} /^-->/{f=1}' skills/vibe-protocol.md > mirror-body.md
+          # If the umbrella spec has no banner, compare against its full text.
+          if diff -q mirror-body.md canonical.md >/dev/null 2>&1; then
+            echo "Spec mirror is in sync with the canonical Strong Vibes Protocol spec."
+          else
+            echo "::error::skills/vibe-protocol.md has diverged from the canonical spec in amok-products/strong-vibes."
+            echo "Re-sync from the umbrella repo. Diff (mirror vs canonical):"
+            diff mirror-body.md canonical.md || true
+            exit 1
+          fi

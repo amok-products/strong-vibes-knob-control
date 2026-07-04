@@ -1,0 +1,66 @@
+# ESP32-S3 Target
+CONFIG_IDF_TARGET="esp32s3"
+
+# NimBLE BLE Stack (not Bluedroid)
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
+CONFIG_BT_BLUEDROID_ENABLED=n
+
+# NimBLE Multi-Role: Allow simultaneous server + client
+CONFIG_BT_NIMBLE_MAX_CONNECTIONS=4
+CONFIG_BT_NIMBLE_ROLE_CENTRAL=y
+CONFIG_BT_NIMBLE_ROLE_PERIPHERAL=y
+CONFIG_BT_NIMBLE_ROLE_OBSERVER=y
+CONFIG_BT_NIMBLE_ROLE_BROADCASTER=y
+
+# BLE Security
+CONFIG_BT_NIMBLE_SM_LEGACY=y
+CONFIG_BT_NIMBLE_SM_SC=y
+
+# PSRAM (Waveshare Knob has 8MB)
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+
+# Encoder uses Waveshare bidi_switch_knob component (not espressif/knob)
+
+# LVGL fonts
+CONFIG_LV_FONT_MONTSERRAT_28=y
+
+# --- Flash size optimization ---
+# The app shares a 1 MB partition on 2 MB flash (no OTA); keep the binary lean.
+# Optimize the whole build for size (-Os) instead of the default debug (-Og).
+CONFIG_COMPILER_OPTIMIZATION_SIZE=y
+
+# Don't compile LVGL's bundled examples/demos into the product firmware.
+CONFIG_LV_BUILD_EXAMPLES=n
+CONFIG_LV_BUILD_DEMOS=n
+
+# Drop LVGL widgets the UI never instantiates. In use (main/): arc, button,
+# checkbox, image, label, tileview. Re-enable a line here before using its
+# widget in the UI, or the build will fail to link.
+CONFIG_LV_USE_ANIMIMG=n
+CONFIG_LV_USE_ARCLABEL=n
+CONFIG_LV_USE_BAR=n
+CONFIG_LV_USE_BUTTONMATRIX=n
+CONFIG_LV_USE_CALENDAR=n
+CONFIG_LV_USE_CANVAS=n
+CONFIG_LV_USE_CHART=n
+CONFIG_LV_USE_DROPDOWN=n
+CONFIG_LV_USE_IMAGEBUTTON=n
+CONFIG_LV_USE_KEYBOARD=n
+CONFIG_LV_USE_LED=n
+CONFIG_LV_USE_LINE=n
+CONFIG_LV_USE_LIST=n
+CONFIG_LV_USE_MENU=n
+CONFIG_LV_USE_MSGBOX=n
+CONFIG_LV_USE_ROLLER=n
+CONFIG_LV_USE_SCALE=n
+CONFIG_LV_USE_SLIDER=n
+CONFIG_LV_USE_SPAN=n
+CONFIG_LV_USE_SPINBOX=n
+CONFIG_LV_USE_SPINNER=n
+CONFIG_LV_USE_SWITCH=n
+CONFIG_LV_USE_TABLE=n
+CONFIG_LV_USE_TABVIEW=n
+CONFIG_LV_USE_TEXTAREA=n
+CONFIG_LV_USE_WIN=n

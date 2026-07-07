@@ -7,6 +7,30 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 The version here mirrors `SV_KNOB_FW_VERSION` in `main/version.h`. Bump both
 together on every functional change (see `CONTRIBUTING.md`).
 
+## [1.4.0] - 2026-07-07
+
+### Changed
+- Switched to a full **OTA-capable 16 MB partition table** (`partitions.csv`),
+  replacing the previous 2 MB / single 1 MB-app / no-OTA default. The board is an
+  ESP32-S3R8 with 16 MB flash and 8 MB PSRAM; the old default mapped only 2 MB and
+  left ~14 MB unused. The new layout — `nvs` / `otadata` / `app0` (3 MB) /
+  `app1` (3 MB) / `spiffs` (~9.9 MB) / `coredump` (64 KB) — is byte-for-byte the
+  factory firmware's table, so app images stay OTA-compatible across the two slots.
+  The app (~0.85 MB) now sits in a 3 MB slot with ~70 % headroom instead of ~18 %.
+
+### Notes
+- **This changes the flash layout, so the device must be fully erased and
+  reflashed over USB once** (`idf.py erase-flash` then `flash`) — a plain app
+  re-flash onto the old table will not migrate it. After that one cable flash,
+  the hardware is OTA-ready.
+- This change makes OTA *possible* (partitions + slots + `otadata`); the runtime
+  update path (OTA-over-BLE + `esp_ota_*` + rollback) is a separate follow-up.
+  `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE` is intentionally left off until that
+  code (with the required `esp_ota_mark_app_valid_cancel_rollback()` call) lands.
+- The `spiffs` partition is reserved for future UI assets (images/fonts). The
+  single embedded logo (~29 KB) stays in the app for now — a filesystem asset
+  pipeline is only worthwhile once artwork grows.
+
 ## [1.3.9] - 2026-07-04
 
 ### Changed

@@ -26,9 +26,17 @@ CONFIG_SPIRAM_MODE_OCT=y
 # LVGL fonts
 CONFIG_LV_FONT_MONTSERRAT_28=y
 
-# --- Flash size optimization ---
-# The app shares a 1 MB partition on 2 MB flash (no OTA); keep the binary lean.
-# Optimize the whole build for size (-Os) instead of the default debug (-Og).
+# --- Flash size + partition layout ---
+# The board has 16 MB flash (ESP32-S3R8). Use it: a full OTA-capable partition
+# table (partitions.csv) with two 3 MB app slots + a ~9.9 MB filesystem, matching
+# the factory table so images stay OTA-compatible across frameworks. This replaces
+# the previous default (2 MB flash, single 1 MB app, no OTA).
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# Keep the binary lean anyway: optimize the whole build for size (-Os) instead
+# of the default debug (-Og). Smaller image = faster OTA and more slot headroom.
 CONFIG_COMPILER_OPTIMIZATION_SIZE=y
 
 # Don't compile LVGL's bundled examples/demos into the product firmware.

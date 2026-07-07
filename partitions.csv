@@ -1,0 +1,15 @@
+# Partition table — Europe Magic Wand Knob (ESP32-S3, 16 MB flash)
+#
+# Full OTA-capable layout. Byte-for-byte matches the factory firmware's table
+# (the Arduino-ESP32 core "default_16MB" scheme) so images are OTA-compatible
+# across the two app slots regardless of which framework built them.
+#
+#   bootloader lives at 0x0 and this table at 0x8000 — neither is a row here.
+#
+# Name,     Type,  SubType,   Offset,    Size,      Flags
+nvs,        data,  nvs,       0x9000,    0x5000,
+otadata,    data,  ota,       0xe000,    0x2000,
+app0,       app,   ota_0,     0x10000,   0x300000,
+app1,       app,   ota_1,     0x310000,  0x300000,
+spiffs,     data,  spiffs,    0x610000,  0x9E0000,
+coredump,   data,  coredump,  0xff0000,  0x10000,

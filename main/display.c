@@ -525,7 +525,7 @@ static void splash_done_cb(lv_anim_t *a)
     }
 }
 
-/* One-shot esp_timer ~3 s after boot: fade the splash out, then delete it. */
+/* One-shot esp_timer ~4 s after boot: fade the splash out, then delete it. */
 static void splash_timer_cb(void *arg)
 {
     (void)arg;
@@ -716,13 +716,13 @@ void display_init(void)
     };
     esp_timer_create(&act_args, &activity_timer);
 
-    /* Boot splash: hold the brand logo for ~3 s, then fade into the UI. */
+    /* Boot splash: hold the brand logo for ~4 s, then fade into the UI. */
     const esp_timer_create_args_t splash_args = {
         .callback = splash_timer_cb,
         .name     = "splash",
     };
     esp_timer_create(&splash_args, &splash_timer);
-    esp_timer_start_once(splash_timer, 3000000);  /* 3 s */
+    esp_timer_start_once(splash_timer, 4000000);  /* 4 s */
 
     /* UI + LVGL are up; setters below may now take the LVGL lock safely. */
     display_ready = true;

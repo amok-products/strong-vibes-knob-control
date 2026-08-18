@@ -7,8 +7,12 @@
  * source artwork with LVGL's image tool (color format L8, white-on-black,
  * 178x166):
  *
- *   python scripts/LVGLImage.py --ofmt C --cf L8 --name sv_logo \
- *          resources/branding/sv_logo.png
+ *   python3 managed_components/lvgl__lvgl/scripts/LVGLImage.py \
+ *           --ofmt C --cf L8 --name sv_logo \
+ *           -o main/ assets/branding/sv_logo.png
+ *
+ * See assets/branding/README.md for export requirements and the size limits
+ * imposed by the round 360x360 panel.
  *
  * L8 (8-bit luminance) is used instead of RGB565 to halve the flash footprint
  * (~29 KB vs ~58 KB); the logo is monochrome so there is no color loss. The

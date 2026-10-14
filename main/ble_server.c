@@ -167,6 +167,7 @@ static int ble_server_gap_event(struct ble_gap_event *event, void *arg)
 
     case BLE_GAP_EVENT_DISCONNECT:
         connected = false;
+        bridge_note_webapp_disconnected();   /* drop the power-button resume level */
         ESP_LOGI(TAG, "Webapp disconnected (reason=%d)",
                  event->disconnect.reason);
         /* Link state (not is_connected()) so a webapp drop mid-discovery does

@@ -53,7 +53,8 @@ bool bridge_emw_mic_known(void);
 /** Note that the knob itself just started a (repeating) pattern on the wand,
  *  so the cached state reflects "running" without waiting for a Motor.State
  *  echo back through the bridge. Prevents consecutive detents from each
- *  re-issuing a fresh auto-flat. */
+ *  re-issuing a fresh auto-flat. Also marks the running pattern as the knob's
+ *  own, so its echoed level can set the wand power-button resume level. */
 void bridge_note_emw_running(void);
 
 /** Note that the knob just stopped the wand (Control.Reset when turned to 0), so
@@ -64,3 +65,9 @@ void bridge_note_emw_idle(void);
 /** Forget the cached wand state (call on EMW disconnect). The next auto-start
  *  decision then waits for a fresh Motor.State instead of a stale value. */
 void bridge_reset_emw_state(void);
+
+/** Call when the Webapp disconnects. Drops the wand power-button resume level
+ *  back to the default, since the session may have changed the level in ways
+ *  the knob does not learn while a Webapp is connected, and learns no new one
+ *  until the knob writes its own flat again. */
+void bridge_note_webapp_disconnected(void);

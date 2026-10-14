@@ -66,7 +66,7 @@ static void send_flat_pattern(uint8_t mic)
     /*
      * RepeatingPattern: linear timbre, 1 segment at 100% constant, 1000ms period
      * [VER=0x10][SIZE=0x09][Motor=0x01][Repeating=0x00]
-     * [Timbre=0x00 linear][PatternID=0xFF][MIC=mic]
+     * [Timbre=0x00 linear][PatternID=KNOB_PATTERN_ID][MIC=mic]
      * [Begin=0x64(100%)][End=0x64(100%)][Period=0x03E8(1000ms)]
      */
     uint8_t pattern[] = {
@@ -102,6 +102,12 @@ static void send_flat_pattern(uint8_t mic)
 
 static void send_mic(uint8_t value)
 {
+    /* Never emit a MIC outside 0-100 (every encoder-originated MIC goes out
+     * through here). The wand applies a pattern-header MIC as a raw gain (0xFF =
+     * x2.55 = full power) and 0xEE means lock-at-100 % by spec, so the knob never
+     * sends either. mic_value is already bounded; this keeps the invariant local. */
+    if (value > MIC_MAX) value = MIC_MAX;
+
     /* The knob now owns the on-screen level: show it immediately and hold off
      * wand-echo repaints for a moment (see encoder_recently_commanded). This is
      * done up-front so it applies even in the flat-pattern branch below, which

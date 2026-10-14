@@ -7,6 +7,28 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 The version here mirrors `SV_KNOB_FW_VERSION` in `main/version.h`. Bump both
 together on every functional change (see `CONTRIBUTING.md`).
 
+## [1.3.10] - 2026-10-13
+
+### Fixed
+- The knob's reply to the wand's own power button no longer runs the motor at
+  full power. The reply was a flat pattern with `MIC=0xFF`, which the protocol
+  defines as "leave the level unchanged" — but the wand applies a pattern-header
+  MIC as a raw gain, so `0xFF` meant ×2.55, clamped to full duty. The reply now
+  resumes the level the knob's own flat last ran at in standalone use (as the
+  wand reported it), never below 2 (MIC 1 is silent). The resume level
+  deliberately survives the MIC-0 idle report the wand sends when its power
+  button turns it off, so a power-off/on returns to the level the user was at.
+  It falls back to a gentle default of 20 after a fresh connect and after any
+  Webapp session: a Webapp pattern's MIC is a gain on its own waveform, not the
+  intensity of the knob's flat, so the knob learns no levels while a Webapp is
+  connected and starts over when it leaves. The knob's screen and encoder
+  follow the level it restarted at instead of the value in the wand's
+  power-button report.
+- Every MIC the knob itself generates (the encoder and the power-button reply)
+  is clamped to 0–100, so it never emits one of the protocol's special values
+  (`0xEE` / `0xFF`). Datagrams from a connected Webapp are still forwarded to
+  the wand unchanged.
+
 ## [1.3.9] - 2026-07-04
 
 ### Changed

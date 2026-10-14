@@ -20,6 +20,12 @@ static const char *TAG = "bridge";
 #define BRIDGE_STACK_SIZE  4096
 #define BRIDGE_TASK_PRIO   5
 
+/* Level for the wand power-button response when there is no resume level (fresh
+ * connect, or after a Webapp session): deliberately gentle. */
+#define KNOB_DEFAULT_MIC   20
+/* MIC 1 is silent on the wand, so a power-button restart never goes below 2. */
+#define KNOB_MIN_RUN_MIC   2
+
 static QueueHandle_t evt_queue;
 
 /* ── Datagram inspection + display sync ─────────────────────────── */
@@ -35,6 +41,21 @@ static bool    emw_state_known = false; /* true once a real Motor.State seen */
  * (a dropped MIC=0 leaves this non-zero while the knob shows 0). */
 static uint8_t emw_mic       = 0;
 static bool    emw_mic_known = false;
+
+/* The level a wand power-button restart resumes at: the last NON-ZERO level the
+ * wand echoed for the knob's own flat in standalone use (0 = none: use the
+ * default). Unlike emw_mic it survives the idle report the wand sends when its
+ * power button turns it off — that report carries MIC 0 — so the restart returns
+ * to the level the user was at. Cleared on wand disconnect and at the end of any
+ * Webapp session, so it only ever holds a level from the current standalone run. */
+static uint8_t emw_resume_mic = 0;
+
+/* True only while the pattern on the wand is known to be one the knob wrote
+ * itself (its auto-flat or the power-button reply). A Webapp pattern write or a
+ * disconnect clears it — conservatively, even if the knob's flat may still be
+ * running. Only then is an echoed MIC the plain intensity of a 100% flat; the
+ * pattern id alone can't tell, since a Webapp may use the same id. */
+static bool knob_owns_pattern = false;
 
 uint8_t bridge_get_emw_motor_state(void)
 {
@@ -62,9 +83,10 @@ void bridge_note_emw_running(void)
      * KNOB_PATTERN_ID (not 0xFF). Record it as running with our pattern id so
      * the wand's echo of it is recognized as ours and never mistaken for the
      * wand's own 0xFF power-button pattern. */
-    emw_motor_state = 1;   /* repeat */
-    emw_pattern_id  = KNOB_PATTERN_ID;
-    emw_state_known = true;
+    emw_motor_state   = 1;   /* repeat */
+    emw_pattern_id    = KNOB_PATTERN_ID;
+    emw_state_known   = true;
+    knob_owns_pattern = true;
 }
 
 void bridge_note_emw_idle(void)
@@ -80,11 +102,25 @@ void bridge_note_emw_idle(void)
 
 void bridge_reset_emw_state(void)
 {
-    emw_motor_state = 0;
-    emw_pattern_id  = 0;
-    emw_state_known = false;
-    emw_mic         = 0;
-    emw_mic_known   = false;
+    emw_motor_state   = 0;
+    emw_pattern_id    = 0;
+    emw_state_known   = false;
+    emw_mic           = 0;
+    emw_mic_known     = false;
+    emw_resume_mic    = 0;
+    knob_owns_pattern = false;
+}
+
+void bridge_note_webapp_disconnected(void)
+{
+    /* Whatever level the knob learned before the session is stale now: the
+     * Webapp may have changed the level, run its own patterns, or the knob may
+     * have been turned meanwhile (none of which is learned while it is
+     * connected). Fall back to the gentle default, and learn nothing more until
+     * the knob writes its own flat again — dropping ownership also stops a
+     * session echo still queued in the bridge from re-seeding a level. */
+    emw_resume_mic    = 0;
+    knob_owns_pattern = false;
 }
 
 /* Re-sync the knob to an inbound (wand or Webapp) MIC level, but only when safe:
@@ -114,6 +150,19 @@ static void note_emw_mic(uint8_t mic)
     emw_mic_known = true;
 }
 
+/* Record a level for the power-button restart to resume at. Only the knob's own
+ * flat in standalone use counts: its MIC is the plain intensity the user chose,
+ * whereas a Webapp pattern's MIC is a gain on its own waveform (100 there is not
+ * the knob's full-power flat). Nothing is learned while a Webapp is connected,
+ * and the session's end clears the level (bridge_note_webapp_disconnected).
+ * Skips 0 (a stop) and the 0xFF "unchanged" / out-of-range values. */
+static void note_emw_resume_mic(uint8_t mic)
+{
+    if (ble_server_is_connected() || !knob_owns_pattern) return;
+    if (mic == 0 || mic > 100) return;
+    emw_resume_mic = mic;
+}
+
 static void inspect_and_sync_display(const uint8_t *data, uint16_t len, bool from_emw)
 {
     if (len == 0 || data[0] != VIBE_DATAGRAM_VER || len < 4)
@@ -139,8 +188,13 @@ static void inspect_and_sync_display(const uint8_t *data, uint16_t len, bool fro
          * waits for the client to send a pattern. The knob's own patterns use
          * KNOB_PATTERN_ID (not 0xFF), so a report of 0xFF-running unambiguously
          * means the wand's button. On the transition INTO wand-0xFF-running,
-         * reply with a flat at MIC=0xFF ("leave the level unchanged") so the
-         * motor runs at the level set on the wand.
+         * reply with a flat so the motor runs.
+         *
+         * MIC: never 0xFF. The wand does not implement the protocol's "leave
+         * unchanged" meaning — it applies a pattern-header MIC as a raw gain, so
+         * 0xFF would be x2.55 = full power. Resume the level the knob's own flat
+         * last ran at (emw_resume_mic, not emw_mic: the idle report for a
+         * power-button off carries MIC 0), else a gentle default.
          *
          * Edge-guarded (fire only when NOT already in wand-0xFF-running) so a
          * wand that keeps re-reporting 0xFF without adopting our pattern cannot
@@ -148,31 +202,66 @@ static void inspect_and_sync_display(const uint8_t *data, uint16_t len, bool fro
          * pattern and sequences its own chunks on state transitions. */
         bool wand_now    = (new_state != 0 && new_pattern == 0xFF);
         bool wand_before = (old_state != 0 && old_pattern == 0xFF);
+        uint8_t shown_mic = data[6];
+        if (!ble_server_is_connected() && wand_now) {
+            /* In standalone the wand never drives its 0xFF pattern itself, so a
+             * 0xFF report's MIC is never the running level: don't show it (0xFF
+             * is ignored by sync_mic_display). The reply below sets the level. */
+            shown_mic = 0xFF;
+        }
         if (!ble_server_is_connected() && wand_now && !wand_before) {
-            static const uint8_t flat[] = {
+            uint8_t mic = emw_resume_mic ? emw_resume_mic : KNOB_DEFAULT_MIC;
+            if (mic > 100)              mic = 100;
+            if (mic < KNOB_MIN_RUN_MIC) mic = KNOB_MIN_RUN_MIC;
+
+            const uint8_t flat[] = {
                 VIBE_DATAGRAM_VER,   /* 0x10 */
                 0x09,                /* SIZE: 9 payload bytes */
                 VIBE_MOD_MOTOR,      /* 0x01 */
                 VIBE_MSG_REPEATING,  /* 0x00 */
                 0x00,                /* Timbre: linear */
                 KNOB_PATTERN_ID,     /* PatternID: ours, distinct from wand 0xFF */
-                0xFF,                /* MIC: 0xFF = leave current level unchanged */
+                mic,                 /* MIC: the resume level chosen above */
                 0x64, 0x64,          /* Begin/End: 100% */
                 0x03, 0xE8,          /* Period: 1000ms */
             };
             ble_client_forward(flat, sizeof(flat));
-            ESP_LOGI(TAG, "Wand power-on -> sent flat id=0x%02x (MIC unchanged)",
-                     KNOB_PATTERN_ID);
+            knob_owns_pattern = true;
+            ESP_LOGI(TAG, "Wand power-on -> sent flat id=0x%02x MIC=%d",
+                     KNOB_PATTERN_ID, mic);
+
+            /* The motor now runs at the level the knob chose, not the one in the
+             * wand's 0xFF report, so show (and step the encoder from) that. */
+            shown_mic = mic;
         }
 
-        if (from_emw) note_emw_mic(data[6]);
-        sync_mic_display(data[6]);
+        if (from_emw) {
+            note_emw_mic(data[6]);
+            /* The knob's flat repeats (state 1) under its own id; never take a
+             * level from the wand's 0xFF report or an idle/error report. */
+            if (new_state == 1 && new_pattern == KNOB_PATTERN_ID)
+                note_emw_resume_mic(data[6]);
+        }
+        sync_mic_display(shown_mic);
         display_set_motor_state(new_state, new_pattern);
     }
     /* Motor.MIC: [VER, SIZE, 0x01, 0x04, mic] */
     else if (mod == VIBE_MOD_MOTOR && msg == VIBE_MSG_MIC && len >= 5) {
-        if (from_emw) note_emw_mic(data[4]);
+        if (from_emw) {
+            note_emw_mic(data[4]);
+            /* A level while a pattern runs; once the knob has marked the wand
+             * idle (a stop), a late echo may only lower it. */
+            if (emw_motor_state != 0 || data[4] < emw_resume_mic)
+                note_emw_resume_mic(data[4]);
+        }
         sync_mic_display(data[4]);
+    }
+    /* A Webapp-written pattern replaces whatever the knob authored; keep "a resume
+     * level exists only while the knob owns the pattern". */
+    else if (!from_emw && mod == VIBE_MOD_MOTOR &&
+             (msg == VIBE_MSG_REPEATING || msg == VIBE_MSG_NONREPEATING)) {
+        knob_owns_pattern = false;
+        emw_resume_mic    = 0;
     }
 }
 
